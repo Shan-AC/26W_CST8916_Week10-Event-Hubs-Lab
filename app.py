@@ -9,6 +9,7 @@
 #   POST /track         → receives a click event and publishes it to Event Hubs
 #   GET  /dashboard     → serves the live analytics dashboard (dashboard.html)
 #   GET  /api/events    → returns recent events as JSON (polled by the dashboard)
+#   Code generated with the assistance of AI gemini
 
 import os
 import json
@@ -40,6 +41,10 @@ CORS(app)
 # ---------------------------------------------------------------------------
 CONNECTION_STR = os.environ.get("EVENT_HUB_CONNECTION_STR", "")
 EVENT_HUB_NAME = os.environ.get("EVENT_HUB_NAME", "clickstream")
+ANALYTICS_HUB_NAME = os.environ.get("ANALYTICS_HUB_NAME", "analytics-output")
+
+_analytics_buffer = []
+_analytics_lock = threading.Lock()
 
 # In-memory buffer: stores the last 50 events received by the consumer thread.
 # In a production system you would query a database or Azure Stream Analytics output.
@@ -91,6 +96,39 @@ def _on_event(partition_context, event):
     # Acknowledge the event so Event Hubs advances the consumer offset
     partition_context.update_checkpoint(event)
 
+def _on_analytics_event(partition_context, event):
+    body = event.body_as_str(encoding="UTF-8")
+    try:
+        data = json.loads(body)
+    except:
+        data = {"raw": body}
+
+    with _analytics_lock:
+        _analytics_buffer.append(data)
+        if len(_analytics_buffer) > 20: 
+            _analytics_buffer.pop(0)
+    partition_context.update_checkpoint(event)
+
+
+def start_analytics_consumer():
+    if not CONNECTION_STR: return
+    
+    consumer = EventHubConsumerClient.from_connection_string(
+        conn_str=CONNECTION_STR,
+        consumer_group="$Default",
+        eventhub_name=ANALYTICS_HUB_NAME, 
+    )
+
+    def run():
+        with consumer:
+            consumer.receive(on_event=_on_analytics_event, starting_position="-1")
+
+    threading.Thread(target=run, daemon=True).start()
+
+@app.route("/api/analytics")
+def get_analytics():
+    with _analytics_lock:
+        return jsonify(_analytics_buffer)
 
 def start_consumer():
     """Start the Event Hubs consumer in a background daemon thread.
@@ -175,6 +213,9 @@ def track():
         "product_id": request.json.get("product_id"),
         "user_id":    request.json.get("user_id", "anonymous"),
         "timestamp":  datetime.now(timezone.utc).isoformat(),
+        "deviceType": request.json.get("deviceType", "unknown"),
+        "browser":    request.json.get("browser", "unknown"),
+        "os":         request.json.get("os", "unknown")
     }
 
     send_to_event_hubs(event)
@@ -224,5 +265,6 @@ def get_events():
 if __name__ == "__main__":
     # Start the background consumer so the dashboard receives live events
     start_consumer()
+    start_analytics_consumer()
     # Run on 0.0.0.0 so it is reachable both locally and inside Azure App Service
     app.run(debug=False, host="0.0.0.0", port=8000)

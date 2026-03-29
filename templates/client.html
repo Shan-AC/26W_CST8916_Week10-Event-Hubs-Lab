@@ -1,3 +1,4 @@
+// Code generated with the assistance of AI gemini
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -173,6 +174,28 @@
 </div>
 
 <script>
+
+function getDeviceInfo() {
+    const ua = navigator.userAgent;
+    let browser = "Unknown", os = "Unknown", deviceType = "desktop";
+
+    if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Chrome")) browser = "Chrome";
+    else if (ua.includes("Safari")) browser = "Safari";
+
+    if (ua.includes("Win")) os = "Windows";
+    else if (ua.includes("Mac")) os = "macOS";
+    else if (ua.includes("Linux")) os = "Linux";
+    else if (/Android/i.test(ua)) os = "Android";
+    else if (/iPhone|iPad/i.test(ua)) os = "iOS";
+
+    if (/Android|iPhone|IEMobile/i.test(ua)) deviceType = "mobile";
+    else if (/iPad/i.test(ua)) deviceType = "tablet";
+
+    return { deviceType, browser, os };
+}
+
+
   // ── Product catalogue ──────────────────────────────────────────
   const PRODUCTS = [
     { id: "p_shoe_01",   name: "Trail Runners",    price: 89.99,  emoji: "👟", page: "/products/shoes" },
@@ -225,12 +248,16 @@
   // Sends a POST request to /track with the event details.
   // The Flask backend publishes this to Azure Event Hubs.
   function trackEvent(eventType, page, productId) {
+    const deviceInfo = getDeviceInfo();
     const payload = {
       event_type: eventType,
       page:       page,
       product_id: productId,
       user_id:    USER_ID,
       session_id: SESSION_ID,
+      deviceType: deviceInfo.deviceType,
+      browser:    deviceInfo.browser,
+      os:         deviceInfo.os
     };
 
     // Send the event to the Flask /track endpoint

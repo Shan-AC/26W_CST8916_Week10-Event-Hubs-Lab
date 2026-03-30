@@ -1,3 +1,4 @@
+// Code generated with the assistance of AI gemini
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -135,6 +136,30 @@
     .t-banner_click { color: #bc8cff; }
     .t-unknown      { color: #8b949e; }
 
+    /* ── Assignment 2 Analytics Styles ────────────────────────── */
+    .alert-card {
+      background: #21262d;
+      border: 1px solid #f85149;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 10px;
+      color: #f85149;
+      font-weight: bold;
+      display: none;
+      animation: flash 1s infinite;
+    }
+    @keyframes flash {
+      0%, 100% { border-color: #f85149; box-shadow: 0 0 5px #f85149; }
+      50% { border-color: transparent; box-shadow: none; }
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #21262d;
+      font-size: 0.9rem;
+    }
+
     /* ── Footer ─────────────────────────────────────────────── */
     footer {
       text-align: center;
@@ -147,7 +172,6 @@
 </head>
 <body>
 
-<!-- ── Header ─────────────────────────────────────────────────── -->
 <header>
   <h1>ShopStream – Live Analytics</h1>
   <div style="display:flex; align-items:center; gap:16px;">
@@ -158,7 +182,6 @@
   </div>
 </header>
 
-<!-- ── KPI row ────────────────────────────────────────────────── -->
 <div class="kpi-row">
   <div class="kpi">
     <div class="label">Total Events</div>
@@ -178,10 +201,26 @@
   </div>
 </div>
 
-<!-- ── Panels ─────────────────────────────────────────────────── -->
+<div class="panels">
+  <div class="panel" style="max-width:350px;">
+    <h3>Traffic by Device (Last 10s Window)</h3>
+    <div id="device-stats">
+      <p style="color:#484f58; font-size:0.85rem;">Waiting for analytics window...</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>System Health & Alerts</h3>
+    <div id="spike-alert" class="alert-card">
+      ⚠️ TRAFFIC SPIKE DETECTED!
+      <div id="spike-details" style="font-size: 0.8rem; font-weight: normal; margin-top:5px;"></div>
+    </div>
+    <div id="no-alerts" style="color:#484f58; font-size:0.85rem;">No active spikes.</div>
+  </div>
+</div>
+
 <div class="panels">
 
-  <!-- Event type breakdown -->
   <div class="panel" style="max-width:400px;">
     <h3>Events by Type</h3>
     <div id="bar-chart">
@@ -189,7 +228,6 @@
     </div>
   </div>
 
-  <!-- Live event feed -->
   <div class="panel">
     <h3>Live Event Feed (from Azure Event Hubs)</h3>
     <div id="feed">
@@ -200,9 +238,8 @@
 </div>
 
 <footer>
-  Polling <code>/api/events</code> every 2 seconds &nbsp;|&nbsp;
-  Events consumed from Azure Event Hubs &nbsp;|&nbsp;
-  CST8916 Week 10 Lab
+  Polling <code>/api/events</code> & <code>/api/analytics</code> every 2 seconds &nbsp;|&nbsp;
+  CST8916 Assignment 2
 </footer>
 
 <script>
@@ -219,6 +256,7 @@
   };
 
   function fetchAndRender() {
+    // 1. Fetch raw events
     fetch("/api/events?limit=50")
       .then(res => res.json())
       .then(data => {
@@ -226,7 +264,16 @@
         renderBarChart(data.summary);
         renderFeed(data.events);
       })
-      .catch(err => console.error("Poll error:", err));
+      .catch(err => console.error("Event poll error:", err));
+
+    // 2. Fetch Stream Analytics insights (Assignment 2)
+    fetch("/api/analytics")
+      .then(res => res.json())
+      .then(data => {
+        renderDeviceStats(data);
+        renderAlerts(data);
+      })
+      .catch(err => console.error("Analytics poll error:", err));
   }
 
   // ── KPI cards ────────────────────────────────────────────────
@@ -245,7 +292,6 @@
     const maxVal = Math.max(...Object.values(summary), 1);
     container.innerHTML = "";
 
-    // Sort by count descending
     const sorted = Object.entries(summary).sort((a, b) => b[1] - a[1]);
     sorted.forEach(([type, count]) => {
       const pct = (count / maxVal * 100).toFixed(1);
@@ -266,7 +312,6 @@
     if (!events || events.length === 0) return;
 
     feed.innerHTML = "";
-    // Show newest first
     [...events].reverse().forEach(e => {
       const ts   = e.timestamp ? e.timestamp.slice(11, 19) : "–";
       const type = e.event_type || "unknown";
@@ -281,6 +326,45 @@
       `;
       feed.appendChild(row);
     });
+  }
+
+  // ── Assignment 2: Render Device Stats ─────────────────────────
+  function renderDeviceStats(data) {
+    const container = document.getElementById("device-stats");
+    const stats = data.filter(d => d.metricType === 'DeviceStats');
+    if (stats.length === 0) return;
+
+    // Show the results from the most recent window (the last entries in the buffer)
+    const latestWindowEnd = stats[stats.length - 1].windowEnd;
+    const latestStats = stats.filter(s => s.windowEnd === latestWindowEnd);
+
+    container.innerHTML = "";
+    latestStats.forEach(s => {
+      const row = document.createElement("div");
+      row.className = "stat-row";
+      row.innerHTML = `<span>${s.deviceType}</span> <strong>${s.clickCount}</strong>`;
+      container.appendChild(row);
+    });
+  }
+
+  // ── Assignment 2: Render Alerts ───────────────────────────────
+  function renderAlerts(data) {
+    const alertCard = document.getElementById("spike-alert");
+    const noAlerts = document.getElementById("no-alerts");
+    const details = document.getElementById("spike-details");
+
+    const spikes = data.filter(d => d.metricType === 'TrafficSpike');
+    
+    // If a spike was detected in the last 10 seconds
+    if (spikes.length > 0) {
+      const latestSpike = spikes[spikes.length - 1];
+      alertCard.style.display = "block";
+      noAlerts.style.display = "none";
+      details.textContent = `${latestSpike.clickCount} clicks detected in the 10s window ending ${latestSpike.windowEnd.slice(11, 19)}.`;
+    } else {
+      alertCard.style.display = "none";
+      noAlerts.style.display = "block";
+    }
   }
 
   // Kick off polling immediately, then repeat

@@ -329,38 +329,56 @@
   }
 
   // ── Assignment 2: Render Device Stats ─────────────────────────
-  function renderDeviceStats(data) {
+ function renderDeviceStats(data) {
     const container = document.getElementById("device-stats");
+    
+
     const stats = data.filter(d => d.metricType === 'DeviceStats');
+    
+  
     if (stats.length === 0) return;
 
-    // Show the results from the most recent window (the last entries in the buffer)
-    const latestWindowEnd = stats[stats.length - 1].windowEnd;
+  
+    const latestEntry = stats[stats.length - 1];
+    const latestWindowEnd = latestEntry.windowEnd;
+
     const latestStats = stats.filter(s => s.windowEnd === latestWindowEnd);
 
+  
     container.innerHTML = "";
     latestStats.forEach(s => {
       const row = document.createElement("div");
       row.className = "stat-row";
-      row.innerHTML = `<span>${s.deviceType}</span> <strong>${s.clickCount}</strong>`;
+  
+      row.innerHTML = `
+        <span>${s.deviceType || 'Unknown'}</span> 
+        <strong style="color: #58a6ff;">${s.clickCount} clicks</strong>
+      `;
       container.appendChild(row);
     });
   }
 
-  // ── Assignment 2: Render Alerts ───────────────────────────────
+  // ── Assignment 2: Render Alerts  ───────────────────────────────
   function renderAlerts(data) {
     const alertCard = document.getElementById("spike-alert");
     const noAlerts = document.getElementById("no-alerts");
     const details = document.getElementById("spike-details");
 
+ 
     const spikes = data.filter(d => d.metricType === 'TrafficSpike');
     
-    // If a spike was detected in the last 10 seconds
     if (spikes.length > 0) {
       const latestSpike = spikes[spikes.length - 1];
-      alertCard.style.display = "block";
-      noAlerts.style.display = "none";
-      details.textContent = `${latestSpike.clickCount} clicks detected in the 10s window ending ${latestSpike.windowEnd.slice(11, 19)}.`;
+      
+
+      if (latestSpike && latestSpike.windowEnd) {
+        alertCard.style.display = "block";
+        noAlerts.style.display = "none";
+        
+  
+        const timeStr = latestSpike.windowEnd.slice(11, 19);
+        details.textContent = `${latestSpike.clickCount} clicks detected in the 10s window ending ${timeStr}.`;
+      }
     } else {
       alertCard.style.display = "none";
       noAlerts.style.display = "block";

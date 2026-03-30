@@ -262,11 +262,22 @@ def get_events():
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+ #   start_consumer()
+ #   start_analytics_consumer()
+
+#if __name__ == "__main__":
+
+  #  app.run(debug=False, host="0.0.0.0", port=8000)
+
+
+print("--- [DEBUG] Starting background consumers...", flush=True)
+
+try:
     start_consumer()
     start_analytics_consumer()
+    print("--- [DEBUG] Consumers initiated successfully.", flush=True)
+except Exception as e:
+    print(f"--- [DEBUG] ERROR starting consumers: {e}", flush=True)
 
 if __name__ == "__main__":
-    # Start the background consumer so the dashboard receives live events
-
-    # Run on 0.0.0.0 so it is reachable both locally and inside Azure App Service
     app.run(debug=False, host="0.0.0.0", port=8000)
